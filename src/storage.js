@@ -88,3 +88,22 @@ export function saveModeBest(score, wave, mode, evolve = true, store) {
   try { s?.setItem(modeStorageKey(mode, evolve), JSON.stringify(next)); } catch { /* Optional storage. */ }
   return next;
 }
+
+export function createScoreSession(store) {
+  const records = new Map();
+  function remember(mode, evolve, value) {
+    const key = modeStorageKey(mode, evolve);
+    const previous = records.get(key) || {v: 2, best: 0, wave: 0};
+    const next = {v: 2, best: Math.max(previous.best, value.best), wave: Math.max(previous.wave, value.wave)};
+    records.set(key, next);
+    return {...next};
+  }
+  function load(mode, evolve = true) {
+    return remember(mode, evolve, loadModeBest(mode, evolve, store));
+  }
+  function save(score, wave, mode, evolve = true) {
+    const previous = load(mode, evolve);
+    return remember(mode, evolve, saveModeBest(Math.max(previous.best, score), Math.max(previous.wave, wave), mode, evolve, store));
+  }
+  return {load, save};
+}

@@ -6,7 +6,7 @@ import { createRenderer } from './render.js';
 import { createInput } from './input.js';
 import { createAudio } from './audio.js';
 import { createUI } from './ui.js';
-import { loadBest, loadModeBest, saveModeBest } from './storage.js';
+import { loadBest, createScoreSession } from './storage.js';
 import { hashSeed } from './rng.js';
 import { RUN_MODES, runMode } from './modes.js';
 
@@ -33,7 +33,8 @@ const audio = createAudio(({enabled, busy, kind, message}) => {
   $('sound-status').dataset.kind = kind;
 });
 const ui = createUI();
-let best = loadModeBest(opts.runMode, opts.evolve);
+const scores = createScoreSession();
+let best = scores.load(opts.runMode, opts.evolve);
 let state = createGame(opts);
 let acc = 0;
 let lastTime = null;
@@ -51,7 +52,7 @@ function modeStatus() {
   $('run-mode-status').textContent = RUN_MODES[selected].description +
     (state.phase !== 'ready' && selected !== state.runMode ? ` Restart to apply; current run is ${RUN_MODES[state.runMode].label}.` : ' Restart starts a new run.');
   const displayed = state.phase === 'ready' ? selected : state.runMode;
-  if (state.phase === 'ready') best = loadModeBest(displayed, state.evolve);
+  if (state.phase === 'ready') best = scores.load(displayed, state.evolve);
   $('hud-best-label').textContent = `${RUN_MODES[displayed].label} ${state.evolve ? 'evolving' : 'control'} best`;
 }
 modeSelect.addEventListener('change', modeStatus);
@@ -87,7 +88,7 @@ function focusField() {
 function launch() {
   if (state.phase !== 'ready') return;
   if (state.runMode !== selectedMode()) state = createGame({...opts, runMode: selectedMode()});
-  best = loadModeBest(state.runMode, state.evolve);
+  best = scores.load(state.runMode, state.evolve);
   ui.reset();
   startGame(state);
   audio.resume();
@@ -98,7 +99,7 @@ function launch() {
 
 function restart() {
   state = restartGame(state, opts.seeded ? opts.seed : (state.seed + 0x9e3779b9) >>> 0, selectedMode());
-  best = loadModeBest(state.runMode, state.evolve);
+  best = scores.load(state.runMode, state.evolve);
   renderer.reset();
   ui.reset();
   input.clear();
@@ -218,7 +219,7 @@ function handleEvents(events) {
     if (ev.type === 'waveStart') announce(`Wave ${ev.wave}`);
     else if (ev.type === 'waveClear') announce(`Wave ${ev.wave} cleared.${state.phase === 'won' ? '' : ' Breeding the next wave.'}`);
     else if (ev.type === 'gameover' || ev.type === 'campaignClear') {
-      best = saveModeBest(ev.score, ev.wave, state.runMode, state.evolve);
+      best = scores.save(ev.score, ev.wave, state.runMode, state.evolve);
       const won = ev.type === 'campaignClear';
       $('over-title').textContent = won ? 'Campaign complete' : 'Defense broken';
       $('over-summary').textContent = `${won ? `All ${ev.wave} waves held. ` : ''}Score ${ev.score.toLocaleString('en-US')} on wave ${ev.wave}.`;

@@ -275,6 +275,7 @@ export function createRenderer(canvas) {
   }
 
   function draw(state, alpha, dt) {
+    const particleDrag = 0.96 ** (dt * 60);
     clock += dt;
     resize();
     const lerp = (a, b) => a + (b - a) * alpha;
@@ -324,8 +325,8 @@ export function createRenderer(canvas) {
       p.life -= dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      p.vx *= 0.96;
-      p.vy *= 0.96;
+      p.vx *= particleDrag;
+      p.vy *= particleDrag;
       const a = Math.max(0, p.life / p.max);
       ctx.fillStyle = `hsla(${p.hue}, 95%, ${60 + 30 * a}%, ${a.toFixed(3)})`;
       ctx.fillRect(p.x, p.y, p.size, p.size);
