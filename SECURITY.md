@@ -6,4 +6,8 @@ The server rejects ambiguous Host and framing headers, unexpected Origins, cross
 
 The browser makes no external requests. The only optional saved record is a bounded best score and wave number in localStorage. Browser extensions, other software running as your account, and a compromised browser or operating system are outside this boundary. A seed in a URL may remain in browser history, so do not put private information in it.
 
-Do not include credentials, personal details, private files or unredacted logs in public feedback. For a suspected vulnerability, use the repository's **Security > Report a vulnerability** option if it is available. If it is unavailable, open a public issue requesting a private reporting channel without including vulnerability details. Do not send proof that contains private data.
+## Reporting a vulnerability
+
+Use [Security > Report a vulnerability](https://github.com/Jgolding1998/swarm-evolution/security/advisories/new) to send a private report. Do not submit vulnerability details through the public feedback form.
+
+Include the affected version, platform, expected behavior and a synthetic reproduction. Leave out credentials, personal information and private files.
