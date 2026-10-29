@@ -24,7 +24,7 @@ python server.py --port 8123
 | Restart | R                                | Restart button                  |
 | Intel   | I                                | Intel button on small screens   |
 
-Optional URL parameters: `?seed=abc` replays the same swarm, and `?mode=control` swaps evolution for random traits at the same budget, so you can feel the difference.
+Optional URL parameters: `?seed=abc` fixes the starting swarm and keeps that seed on restart. The same seed and inputs replay identically; later waves depend on how you play. `?mode=control` swaps evolution for random traits at the same budget.
 
 ## How the swarm evolves
 
@@ -43,6 +43,8 @@ Optional URL parameters: `?seed=abc` replays the same swarm, and `?mode=control`
 
 **Breeding.** The top 2 drones' trait allocations carry over, rescaled to the next wave's budget. Most of the wave comes from tournament selection (size 3), uniform crossover and Gaussian mutation. About 10% are fresh random newcomers, so the gene pool keeps some variety. Each drone records its parents and lineage. Selection uses this run's outcomes; it does not guarantee that every new wave will be harder.
 
+Formation slots are shuffled each wave using a separate seeded stream, so elite drones and newcomers do not always inherit the same starting positions. Control mode uses the same slot permutation for a given seed and wave.
+
 **Intel panel.** Shows average traits for the incoming wave and the selection differential: how far the chosen parents' average was from the whole wave's. It also shows a plain-language summary, the top drone's fitness sources, and lineage shares. Drone visuals reflect their genes: flame length for Thrust, wingspan for Weave, plating rings for Armor, eye brightness for Aim, barrels for Fire rate.
 
 **Defense line.** Each breach costs one of 4 line segments. Losing the last segment costs a life and resets the line. Clearing a wave repairs one segment, and every 4th wave grants a life (up to 5).
@@ -55,7 +57,9 @@ python -m unittest discover -s tests -p "test_*.py"        # loopback server
 node tools/balance.js 24 12                                # headless balance report (seeds, wave cap)
 ```
 
-`tools/balance.js` pits two scripted pilots (casual and skilled) against evolving swarms and against a random control at the same budget, then reports pressure, breach rate, fitness and trait drift per wave.
+`tools/balance.js` pits two scripted pilots (casual and skilled) against evolving swarms and a random control. It reports normal-game survival separately from a pressure assay with extra lives, so early game overs do not remove difficult runs from late-wave comparisons. The assay keeps the same fitness, damage, budgets and formation rules. Bot results do not establish how a human will play.
+
+The optional browser test checks keyboard and touch play, short-screen overlays, restart, game over and storage failures. In a disposable test environment, install `playwright@1.62.1`, run `npx playwright install chromium`, then `node tests/browser.cjs`. Screenshots go under the ignored `work/browser/` directory. Playwright is not a game dependency.
 
 ## Layout
 

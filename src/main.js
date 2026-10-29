@@ -14,9 +14,10 @@ const $ = (id) => document.getElementById(id);
 function readOptions() {
   const params = new URLSearchParams(location.search);
   const raw = params.get('seed');
-  const seed = raw && /^[A-Za-z0-9_-]{1,32}$/.test(raw) ? hashSeed(raw) : (Date.now() ^ (performance.now() * 1000)) >>> 0;
+  const seeded = Boolean(raw && /^[A-Za-z0-9_-]{1,32}$/.test(raw));
+  const seed = seeded ? hashSeed(raw) : (Date.now() ^ (performance.now() * 1000)) >>> 0;
   const evolve = params.get('mode') !== 'control';
-  return { seed, evolve };
+  return { seed, evolve, seeded };
 }
 
 const opts = readOptions();
@@ -50,7 +51,7 @@ function launch() {
 }
 
 function restart() {
-  state = restartGame(state, (state.seed + 0x9e3779b9) >>> 0);
+  state = restartGame(state, opts.seeded ? opts.seed : (state.seed + 0x9e3779b9) >>> 0);
   renderer.reset();
   ui.reset();
   input.clear();

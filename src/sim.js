@@ -136,7 +136,12 @@ export function makeEnemy(state, genome, x, delay = 0) {
 export function spawnWave(state) {
   state.wave += 1;
   state.waveRecords = [];
-  const pop = state.population;
+  const pop = [...state.population];
+  const slots = createRng(state.seed ^ Math.imul(state.wave, 0x85ebca6b));
+  for (let i = pop.length - 1; i > 0; i--) {
+    const j = Math.floor(rand(slots) * (i + 1));
+    [pop[i], pop[j]] = [pop[j], pop[i]];
+  }
   const cols = Math.min(pop.length, 8);
   const margin = 70;
   for (let i = 0; i < pop.length; i++) {
