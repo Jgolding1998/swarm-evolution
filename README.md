@@ -4,6 +4,8 @@ An arcade shooter where the enemies breed. Every drone carries eight inherited t
 
 No build step, no dependencies, no external requests. Plain JavaScript modules, HTML and CSS, with procedural canvas art and optional Web Audio sound.
 
+![Swarm Evolution with the live trait and lineage panel](docs/gameplay.png)
+
 ## Play
 
 Use Python 3.11 or newer and a current browser. Node.js 24 is needed only for the tests and balance tool.
