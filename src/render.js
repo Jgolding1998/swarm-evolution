@@ -87,6 +87,9 @@ export function createRenderer(canvas) {
         case 'waveClear':
           banner = { text: ev.clean ? 'Wave held: double bonus' : 'Wave cleared', sub: 'Breeding the survivors', t: 2.4 };
           break;
+        case 'campaignClear':
+          banner = {text: 'Campaign complete', sub: `${ev.wave} waves held`, t: 3};
+          break;
         default:
           break;
       }

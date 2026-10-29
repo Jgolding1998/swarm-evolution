@@ -53,6 +53,15 @@ async function main() {
         } else await route.continue();
       });
       await value.addInitScript((fakeAudio) => {
+        if (fakeAudio === 'real') {
+          const Native = globalThis.AudioContext;
+          globalThis.__audioStarts = 0;
+          globalThis.AudioContext = class extends Native {
+            constructor(...args) {super(...args); globalThis.__realAudio = this;}
+            createOscillator() {const node = super.createOscillator(), start = node.start.bind(node); node.start = (...args) => {globalThis.__audioStarts++; return start(...args);}; return node;}
+          };
+          return;
+        }
         const node = () => ({gain: {value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {}},
           frequency: {setValueAtTime() {}, exponentialRampToValueAtTime() {}},
           connect() {return this;}, start() {globalThis.__audioStarts += 1;}, stop() {}});
@@ -84,6 +93,10 @@ async function main() {
     check(response.headers()["content-security-policy"].includes("connect-src 'none'"), "Remote connections are blocked");
     check(await page.evaluate(() => globalThis.__swarmDebug === undefined), "No production test state hook");
     check(await page.locator("#btn-sound").getAttribute("aria-pressed") === "false", "Sound starts off");
+    await page.locator('#btn-sound').click();
+    check(await page.locator('#btn-sound').textContent() === 'Sound unavailable', 'Denied audio has honest retry feedback');
+    check(await page.locator('#sound-status').textContent().then(t => t.includes('game still works')), 'Audio failure explains that play remains available');
+    check(await page.locator('#run-mode').inputValue() === 'campaign', 'UI defaults to a twelve-wave campaign');
     await page.locator("#btn-start").click();
     const seededTraits = await page.locator("#gene-list").textContent();
     await page.keyboard.down("ArrowRight"); await delay(100); await page.keyboard.up("ArrowRight");
@@ -107,7 +120,15 @@ async function main() {
     await page.waitForFunction(() => document.querySelector("#hud-score").textContent === "0");
     check(await page.locator("#hud-lives").getAttribute("aria-label") === "3 lives", "Restart restores lives");
     check(await page.locator("#gene-list").textContent() === seededTraits, "Restart preserves the explicit URL seed");
+    await page.locator('#run-mode').selectOption('endless');
+    check((await page.locator('#run-mode-status').textContent()).includes('Restart to apply'), 'A mode choice waits for a new run');
+    check((await page.locator('#hud-best-label').textContent()).includes('Campaign'), 'Changing the selector preserves the current run');
+    await page.locator('#btn-restart').click();
+    check((await page.locator('#hud-best-label').textContent()).includes('Endless'), 'Restart applies the selected mode');
     check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Desktop has no horizontal overflow");
+    await page.setViewportSize({width: 1366, height: 768});
+    await page.evaluate(() => {scrollTo(0, document.documentElement.scrollHeight); dispatchEvent(new Event('resize')); scrollTo(0, 0);});
+    check(await page.locator('#game').evaluate(node => node.getBoundingClientRect().bottom <= innerHeight), 'Scroll and resize preserve the whole playfield after returning to the top');
     await desktop.close();
 
     for (const launch of ["click", "Enter", "Space", "tap"]) {
@@ -119,6 +140,7 @@ async function main() {
       await audioPage.evaluate(() => {Object.defineProperty(document, "hidden", {configurable: true, get: () => true}); document.dispatchEvent(new Event("visibilitychange"));});
       check(await audioPage.evaluate(() => globalThis.__fakeAudio.state === "suspended"), "Hidden title suspends opted-in audio");
       await audioPage.evaluate(() => {delete document.hidden; document.dispatchEvent(new Event("visibilitychange"));});
+      await audioPage.evaluate(() => {globalThis.__audioStarts = 0;});
       const button = audioPage.locator("#btn-start");
       if (launch === "click") await button.click();
       else if (launch === "tap") await button.tap();
@@ -129,10 +151,53 @@ async function main() {
       await sound.close();
     }
 
-    for (const [width, height] of [[390, 844], [844, 390], [320, 568]]) {
+    const actual = await context({viewport: {width: 1280, height: 900}}, 'real');
+    const real = await actual.newPage();
+    await real.goto(origin + '/?seed=actual-audio');
+    check(await real.evaluate(() => !globalThis.__realAudio), 'No real audio context is created before opt-in');
+    await real.locator('#btn-sound').click();
+    await real.waitForFunction(() => document.querySelector('#btn-sound').getAttribute('aria-pressed') === 'true');
+    check(await real.evaluate(() => __realAudio.state === 'running' && __audioStarts === 1), 'Actual Chrome resumes audio and schedules the confirmation cue');
+    check((await real.locator('#sound-status').textContent()).includes('test tone'), 'The confirmation explains external volume limits');
+    const rendered = await real.evaluate(async () => {
+      const {scheduleTone} = await import('/src/audio.js');
+      const ctx = new OfflineAudioContext(1, 24000, 48000), master = ctx.createGain();
+      master.gain.value = 0.4; master.connect(ctx.destination);
+      scheduleTone(ctx, master, 'triangle', 660, 880, 0.15, 0.18);
+      const data = (await ctx.startRendering()).getChannelData(0);
+      let sum = 0, peak = 0, tail = 0;
+      for (let i = 0; i < data.length; i++) {sum += data[i] ** 2; peak = Math.max(peak, Math.abs(data[i])); if (i > 12000) tail = Math.max(tail, Math.abs(data[i]));}
+      return {rms: Math.sqrt(sum / data.length), peak, tail};
+    });
+    check(rendered.rms > 0.001 && rendered.peak < 1 && rendered.tail === 0, 'Production tone graph renders a nonzero bounded waveform and stops');
+    console.log(JSON.stringify({offlineAudio: rendered, physicalAudibilityTested: false}));
+    await real.locator('#btn-sound').click();
+    await real.waitForFunction(() => __realAudio.state === 'suspended');
+    check(await real.locator('#btn-sound').getAttribute('aria-pressed') === 'false', 'Real Sound off suspends the context');
+    await actual.close();
+
+    for (const [mode, waves] of [['campaign', 12], ['extended', 24]]) {
+      const victory = await context({viewport: {width: 1280, height: 900}});
+      // Only this test response starts at a final clear. The shipped module has no debug hook.
+      await victory.route('**/src/sim.js', async route => {
+        const response = await route.fetch();
+        const source = (await response.text()).replace('spawnWave(state);\n  return state;', `spawnWave(state);\n  state.wave = ${waves}; state.enemies.length = state.shots.length = 0;\n  return state;`);
+        await route.fulfill({response, body: source});
+      });
+      const won = await victory.newPage(); await won.goto(origin + '/?seed=terminal-ui&run=' + mode);
+      await won.locator('#btn-start').click(); await won.locator('#panel-over').waitFor({state: 'visible'});
+      check(await won.locator('#over-title').textContent() === 'Campaign complete', `${waves}-wave victory has its own result heading`);
+      check((await won.locator('#over-summary').textContent()).includes(`All ${waves} waves held`), 'Victory describes the selected target');
+      check(await won.evaluate(key => JSON.parse(localStorage.getItem(key)).wave, `swarm-evolution.best.v2.${mode}.evolving`) === waves, 'Victory saves in the matching mode key');
+      await victory.close();
+    }
+
+    for (const [width, height] of [[390, 844], [375, 667], [844, 390], [320, 568]]) {
       const mobile = await context({viewport: {width, height}, isMobile: true, hasTouch: true, deviceScaleFactor: 2});
       const phone = await mobile.newPage();
       await phone.goto(origin + "/?seed=phone-seed");
+      await phone.waitForFunction(() => getComputedStyle(document.documentElement).getPropertyValue('--field-space') !== '');
+      check(await phone.locator('#game').evaluate(node => {const r = node.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight;}), `Entire playfield stays on screen at ${width}x${height}`);
       const cdp = await mobile.newCDPSession(phone);
       check(await touchReach(phone, cdp, "#btn-start"), `Launch is reachable at ${width}x${height}`);
       await phone.screenshot({path: path.join(captures, `title-${width}x${height}.png`), fullPage: true});
@@ -164,13 +229,13 @@ async function main() {
     await end.locator("#btn-start").tap();
     await end.locator("#panel-over").waitFor({state: "visible", timeout: 15000});
     check((await end.locator("#over-summary").textContent()).includes("Score"), "Actual simulation reaches game over");
-    const saved = await end.evaluate(() => JSON.parse(localStorage.getItem("swarm-evolution.best.v1")));
+    const saved = await end.evaluate(() => JSON.parse(localStorage.getItem("swarm-evolution.best.v2.campaign.evolving")));
     check(Object.keys(saved).sort().join(",") === "best,v,wave" && saved.wave >= 1, "Game over saves only the bounded score schema");
     check(await touchReach(end, endTouch, "#btn-again"), "Fly again remains reachable on a short screen");
     await end.screenshot({path: path.join(captures, "game-over-320x568.png"), fullPage: true});
     await end.locator("#btn-again").tap();
     check(await end.locator("#panel-over").isHidden(), "Fly again restarts play");
-    await end.evaluate(() => localStorage.setItem("swarm-evolution.best.v1", "{broken"));
+    await end.evaluate(() => localStorage.setItem("swarm-evolution.best.v2.campaign.evolving", "{broken"));
     await end.reload();
     check(await end.locator("#hud-best").textContent() === "0", "Malformed stored data is ignored");
     await fast.close();

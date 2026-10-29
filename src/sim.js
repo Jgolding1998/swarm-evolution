@@ -4,6 +4,7 @@
 import { createRng, rand, range, gauss } from './rng.js';
 import { phenotype, waveBudget, geneSum } from './genome.js';
 import { emptyRecord, fitness, breed, founders, NEAR_RADIUS } from './evolution.js';
+import { RUN_MODES, runMode } from './modes.js';
 
 export const DT = 1 / 60;
 export const WORLD = { w: 640, h: 720 };
@@ -39,17 +40,18 @@ export function shotCap(wave) {
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
-export function createGame({ seed = 1, evolve = true } = {}) {
+export function createGame({ seed = 1, evolve = true, runMode: requestedMode = 'endless' } = {}) {
   const rng = createRng(seed);
   const ids = { nextId: 1, nextClade: 0 };
   const state = {
     seed: seed >>> 0,
     evolve: !!evolve,
+    runMode: runMode(requestedMode),
     rng,
     ids,
     tick: 0,
     time: 0,
-    phase: 'ready', // ready | playing | intermission | gameover
+    phase: 'ready', // ready | playing | intermission | gameover | won
     paused: false,
     score: 0,
     lives: CONFIG.lives,
@@ -78,8 +80,8 @@ export function startGame(state) {
   return state;
 }
 
-export function restartGame(state, seed = state.seed) {
-  return startGame(createGame({ seed, evolve: state.evolve }));
+export function restartGame(state, seed = state.seed, mode = state.runMode) {
+  return startGame(createGame({ seed, evolve: state.evolve, runMode: mode }));
 }
 
 export function setPaused(state, paused) {
@@ -134,7 +136,7 @@ export function makeEnemy(state, genome, x, delay = 0) {
 }
 
 export function spawnWave(state) {
-  state.wave += 1;
+  state.wave = Math.min(Number.MAX_SAFE_INTEGER, state.wave + 1);
   state.waveRecords = [];
   const pop = [...state.population];
   const slots = createRng(state.seed ^ Math.imul(state.wave, 0x85ebca6b));
@@ -364,7 +366,7 @@ function bulletPhase(state, dt) {
         } else {
           e.rec.killed = true;
           state.stats.kills += 1;
-          state.score += enemyValue(e);
+          state.score = Math.min(Number.MAX_SAFE_INTEGER, state.score + enemyValue(e));
           emit(state, { type: 'kill', x: e.x, y: e.y, clade: e.genome.clade });
           removeEnemy(state, j);
         }
@@ -409,21 +411,23 @@ function finishWave(state) {
   state.reports.push(report);
   if (state.reports.length > 20) state.reports.shift();
   const clean = report.outcome.escaped === 0;
-  state.score += 100 * state.wave * (clean ? 2 : 1);
+  state.score = Math.min(Number.MAX_SAFE_INTEGER, state.score + 100 * state.wave * (clean ? 2 : 1));
   state.shield = Math.min(CONFIG.shieldMax, state.shield + 1);
   if (state.wave % CONFIG.extraLifeEvery === 0 && state.lives < CONFIG.maxLives) {
     state.lives += 1;
     emit(state, { type: 'extraLife' });
   }
-  state.phase = 'intermission';
-  state.intermission = CONFIG.intermission;
+  const target = RUN_MODES[state.runMode].waves;
+  state.phase = target !== null && state.wave >= target ? 'won' : 'intermission';
+  state.intermission = state.phase === 'won' ? 0 : CONFIG.intermission;
   emit(state, { type: 'waveClear', wave: state.wave, clean });
+  if (state.phase === 'won') emit(state, {type: 'campaignClear', score: state.score, wave: state.wave});
 }
 
 const IDLE = Object.freeze({ left: false, right: false, fire: false, pointerX: null });
 
 export function step(state, input = IDLE) {
-  if (state.paused || state.phase === 'ready' || state.phase === 'gameover') return state;
+  if (state.paused || state.phase === 'ready' || state.phase === 'gameover' || state.phase === 'won') return state;
   const dt = DT;
   const inp = input || IDLE;
   state.tick += 1;
@@ -450,6 +454,7 @@ export function snapshot(state) {
     tick: state.tick,
     rng: state.rng.s,
     phase: state.phase,
+    runMode: state.runMode,
     score: state.score,
     lives: state.lives,
     shield: state.shield,

@@ -26,6 +26,7 @@ ROUTES = {
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
     "/assets/icon.svg": ("assets/icon.svg", "image/svg+xml"),
     "/src/main.js": ("src/main.js", JS),
+    "/src/modes.js": ("src/modes.js", JS),
     "/src/sim.js": ("src/sim.js", JS),
     "/src/evolution.js": ("src/evolution.js", JS),
     "/src/genome.js": ("src/genome.js", JS),

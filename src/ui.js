@@ -67,7 +67,7 @@ export function createUI() {
     const shownWave = report ? report.nextWave : 1;
     const means = report ? report.nextMean : geneMeans(state.population);
     const budget = waveBudget(shownWave);
-    $('intel-sub').textContent = state.evolve
+    $('intel-sub').textContent = state.phase === 'won' ? 'Campaign complete. Final selection result:' : state.evolve
       ? `Wave ${shownWave} gene pool: budget ${budget.toFixed(1)} of 8 trait points`
       : `Control mode: random traits, budget ${budget.toFixed(1)}`;
     for (const g of GENES) {
@@ -82,7 +82,7 @@ export function createUI() {
     }
 
     const lines = report
-      ? explainReport(report)
+      ? explainReport(report).filter(text => state.phase !== 'won' || !text.startsWith('Next:'))
       : ['Wave 1 drones are random founders.', 'Each drone is scored on how close it got, how long it lived, whether it breached your line and what it hit.', 'The best scorers breed the next wave.'];
     $('report').replaceChildren(...lines.map((t) => el('li', null, t)));
 

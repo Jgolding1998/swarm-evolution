@@ -20,7 +20,7 @@
       <div><dt>Wave</dt><dd id="hud-wave">1</dd></div>
       <div><dt>Lives</dt><dd id="hud-lives" class="pips" aria-label="3 lives"></dd></div>
       <div><dt>Line</dt><dd id="hud-shield" class="pips" aria-label="Defense line 4 of 4"></dd></div>
-      <div class="hud-best"><dt>Best</dt><dd id="hud-best">0</dd></div>
+      <div class="hud-best"><dt id="hud-best-label">Mode best</dt><dd id="hud-best">0</dd></div>
     </dl>
     <div class="controls">
       <button type="button" id="btn-pause" aria-pressed="false" title="Pause (P)">Pause</button>
@@ -29,6 +29,18 @@
       <button type="button" id="btn-intel" class="intel-toggle" aria-expanded="false" aria-controls="intel" title="Intel (I)">Intel</button>
     </div>
   </header>
+
+  <section class="run-settings" aria-label="Run and sound settings">
+    <label for="run-mode">Run</label>
+    <select id="run-mode">
+      <option value="campaign">Campaign: 12 waves</option>
+      <option value="extended">Long campaign: 24 waves</option>
+      <option value="endless">Endless survival</option>
+    </select>
+    <span id="run-mode-status">Hold 12 waves to complete the campaign. Restart applies a new selection.</span>
+    <span id="legacy-best" hidden></span>
+    <p id="sound-status" role="status" aria-live="polite">Sound is off. Turn it on for a short test tone.</p>
+  </section>
 
   <main class="layout">
     <section class="stage" aria-label="Game">
@@ -52,7 +64,7 @@
           <button type="button" id="btn-resume" class="primary">Resume</button>
         </div>
         <div id="panel-over" class="panel" hidden>
-          <h2>Defense broken</h2>
+          <h2 id="over-title">Defense broken</h2>
           <p id="over-summary">You held out.</p>
           <p id="over-best" class="muted"></p>
           <button type="button" id="btn-again" class="primary">Fly again</button>

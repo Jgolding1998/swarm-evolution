@@ -6,8 +6,9 @@ import { createRenderer } from './render.js';
 import { createInput } from './input.js';
 import { createAudio } from './audio.js';
 import { createUI } from './ui.js';
-import { loadBest, saveBest } from './storage.js';
+import { loadBest, loadModeBest, saveModeBest } from './storage.js';
 import { hashSeed } from './rng.js';
+import { RUN_MODES, runMode } from './modes.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -17,18 +18,58 @@ function readOptions() {
   const seeded = Boolean(raw && /^[A-Za-z0-9_-]{1,32}$/.test(raw));
   const seed = seeded ? hashSeed(raw) : (Date.now() ^ (performance.now() * 1000)) >>> 0;
   const evolve = params.get('mode') !== 'control';
-  return { seed, evolve, seeded };
+  return { seed, evolve, seeded, runMode: runMode(params.get('run'), 'campaign') };
 }
 
 const opts = readOptions();
 const canvas = $('game');
 const renderer = createRenderer(canvas);
-const audio = createAudio();
+const audio = createAudio(({enabled, busy, kind, message}) => {
+  const button = $('btn-sound');
+  button.disabled = busy;
+  button.setAttribute('aria-pressed', String(enabled));
+  button.textContent = busy ? 'Enabling sound...' : enabled ? 'Sound on' : kind === 'unavailable' ? 'Sound unavailable' : 'Sound off';
+  $('sound-status').textContent = message;
+  $('sound-status').dataset.kind = kind;
+});
 const ui = createUI();
-let best = loadBest();
+let best = loadModeBest(opts.runMode, opts.evolve);
 let state = createGame(opts);
 let acc = 0;
 let lastTime = null;
+const modeSelect = $('run-mode');
+modeSelect.value = opts.runMode;
+const legacy = loadBest();
+if (legacy.best || legacy.wave) {
+  $('legacy-best').hidden = false;
+  $('legacy-best').textContent = `Legacy best ${legacy.best.toLocaleString('en-US')} / wave ${legacy.wave} (old mixed-rule record).`;
+}
+
+function selectedMode() { return runMode(modeSelect.value, 'campaign'); }
+function modeStatus() {
+  const selected = selectedMode();
+  $('run-mode-status').textContent = RUN_MODES[selected].description +
+    (state.phase !== 'ready' && selected !== state.runMode ? ` Restart to apply; current run is ${RUN_MODES[state.runMode].label}.` : ' Restart starts a new run.');
+  const displayed = state.phase === 'ready' ? selected : state.runMode;
+  if (state.phase === 'ready') best = loadModeBest(displayed, state.evolve);
+  $('hud-best-label').textContent = `${RUN_MODES[displayed].label} ${state.evolve ? 'evolving' : 'control'} best`;
+}
+modeSelect.addEventListener('change', modeStatus);
+
+// Reserve the actual wrapped toolbar height, including sound feedback and
+// translated/browser-sized text, so the ship stays inside the viewport.
+function fitField() {
+  const layout = document.querySelector('.layout'), style = getComputedStyle(layout);
+  const free = innerHeight - (layout.getBoundingClientRect().top + scrollY) - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+  document.documentElement.style.setProperty('--field-space', `${Math.max(120, Math.floor(free))}px`);
+}
+if (globalThis.ResizeObserver) {
+  const size = new ResizeObserver(fitField);
+  size.observe(document.querySelector('.topbar'));
+  size.observe(document.querySelector('.run-settings'));
+}
+addEventListener('resize', fitField);
+fitField();
 
 const overlay = $('overlay');
 const panels = { title: $('panel-title'), pause: $('panel-pause'), over: $('panel-over') };
@@ -45,14 +86,19 @@ function focusField() {
 
 function launch() {
   if (state.phase !== 'ready') return;
+  if (state.runMode !== selectedMode()) state = createGame({...opts, runMode: selectedMode()});
+  best = loadModeBest(state.runMode, state.evolve);
+  ui.reset();
   startGame(state);
   audio.resume();
+  modeStatus();
   showPanel(null);
   focusField();
 }
 
 function restart() {
-  state = restartGame(state, opts.seeded ? opts.seed : (state.seed + 0x9e3779b9) >>> 0);
+  state = restartGame(state, opts.seeded ? opts.seed : (state.seed + 0x9e3779b9) >>> 0, selectedMode());
+  best = loadModeBest(state.runMode, state.evolve);
   renderer.reset();
   ui.reset();
   input.clear();
@@ -62,6 +108,7 @@ function restart() {
   syncPause();
   audio.resume();
   focusField();
+  modeStatus();
 }
 
 function pause(on, reason = '') {
@@ -72,7 +119,7 @@ function pause(on, reason = '') {
     $('pause-reason').textContent = reason || 'Take a breath. The swarm waits.';
     showPanel('pause');
     audio.suspend();
-  } else if (!state.paused && state.phase !== 'ready' && state.phase !== 'gameover') {
+  } else if (!state.paused && state.phase !== 'ready' && state.phase !== 'gameover' && state.phase !== 'won') {
     showPanel(null);
     audio.resume();
     focusField();
@@ -87,10 +134,7 @@ function syncPause() {
 }
 
 function toggleSound() {
-  const on = audio.toggle();
-  const btn = $('btn-sound');
-  btn.setAttribute('aria-pressed', String(on));
-  btn.textContent = on ? 'Sound on' : 'Sound off';
+  audio.toggle();
 }
 
 function toggleIntel() {
@@ -107,7 +151,7 @@ function onCommand(cmd) {
       break;
     case 'start':
       if (state.phase === 'ready') launch();
-      else if (state.phase === 'gameover') restart();
+      else if (state.phase === 'gameover' || state.phase === 'won') restart();
       else if (state.paused) pause(false);
       break;
     case 'pause':
@@ -162,16 +206,19 @@ function announce(text) {
 }
 
 function handleEvents(events) {
+  if (state.phase === 'won') events = events.filter(ev => ev.type !== 'extraLife');
   renderer.consume(events);
   for (const ev of events) {
     audio.play(ev.type);
     if (ev.type === 'waveStart') announce(`Wave ${ev.wave}`);
-    else if (ev.type === 'waveClear') announce(`Wave ${ev.wave} cleared. Breeding the next wave.`);
-    else if (ev.type === 'gameover') {
-      best = saveBest(ev.score, ev.wave);
-      $('over-summary').textContent = `Score ${ev.score.toLocaleString('en-US')} on wave ${ev.wave}.`;
-      $('over-best').textContent = `Best ${best.best.toLocaleString('en-US')}, furthest wave ${best.wave}.`;
-      announce(`Game over. Score ${ev.score}.`);
+    else if (ev.type === 'waveClear') announce(`Wave ${ev.wave} cleared.${state.phase === 'won' ? '' : ' Breeding the next wave.'}`);
+    else if (ev.type === 'gameover' || ev.type === 'campaignClear') {
+      best = saveModeBest(ev.score, ev.wave, state.runMode, state.evolve);
+      const won = ev.type === 'campaignClear';
+      $('over-title').textContent = won ? 'Campaign complete' : 'Defense broken';
+      $('over-summary').textContent = `${won ? `All ${ev.wave} waves held. ` : ''}Score ${ev.score.toLocaleString('en-US')} on wave ${ev.wave}.`;
+      $('over-best').textContent = `${RUN_MODES[state.runMode].label} ${state.evolve ? 'evolving' : 'control'} best ${best.best.toLocaleString('en-US')}, furthest wave ${best.wave}.`;
+      announce(`${won ? 'Campaign complete' : 'Game over'}. Score ${ev.score}.`);
       showPanel('over');
     }
   }
@@ -181,7 +228,7 @@ function frame(now) {
   const elapsed = lastTime == null ? 0 : (now - lastTime) / 1000;
   lastTime = now;
   let alpha = 1;
-  if (!state.paused && state.phase !== 'ready' && state.phase !== 'gameover') {
+  if (!state.paused && state.phase !== 'ready' && state.phase !== 'gameover' && state.phase !== 'won') {
     const r = consumeFrame(acc, elapsed, DT);
     acc = r.acc;
     alpha = r.alpha;
@@ -200,5 +247,6 @@ function frame(now) {
 
 if (!opts.evolve) $('intel-title').textContent = 'Swarm intel (control)';
 showPanel('title');
+modeStatus();
 ui.hudUpdate(state, best.best);
 requestAnimationFrame(frame);

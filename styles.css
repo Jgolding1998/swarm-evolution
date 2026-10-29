@@ -42,6 +42,7 @@ button {
 }
 button:hover { border-color: var(--accent); }
 button:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button[aria-pressed='true'] { background: #1d3550; border-color: var(--accent); }
 button.primary {
   background: linear-gradient(135deg, #2ad3e8, #6b5cff);
@@ -95,6 +96,10 @@ button.primary {
 #hud-shield.low .pip.on { background: var(--bad); }
 
 .controls { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.run-settings {display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.7rem; padding: 0.6rem 1rem; font-size: 0.85rem; color: var(--muted);}
+.run-settings select {font: inherit; color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 0.35rem; min-height: 2.25rem; max-width: 100%;}
+#sound-status {flex-basis: 100%; margin: 0; min-height: 1.2em;}
+#sound-status[data-kind='unavailable'] {color: var(--warn);}
 .intel-toggle { display: none; }
 
 .layout {
@@ -112,7 +117,7 @@ button.primary {
 .stage {
   position: relative;
   justify-self: center;
-  width: min(100%, calc((100dvh - 7rem) * 640 / 720));
+  width: min(100%, calc(var(--field-space, calc(100dvh - 11rem)) * 640 / 720));
   aspect-ratio: 640 / 720;
   border-radius: var(--radius);
   overflow: hidden;
@@ -229,7 +234,6 @@ kbd {
 
 @media (max-width: 860px) {
   .layout { grid-template-columns: 1fr; padding: 0.5rem; }
-  .stage { width: min(100%, calc((100dvh - 9rem) * 640 / 720)); }
   .intel-toggle { display: inline-block; }
   .intel { display: none; }
   .intel.open { display: grid; }

@@ -26,6 +26,10 @@ python server.py --port 8123
 
 Optional URL parameters: `?seed=abc` fixes the starting swarm and keeps that seed on restart. The same seed and inputs replay identically; later waves depend on how you play. `?mode=control` swaps evolution for random traits at the same budget.
 
+Choose **Campaign** (12 waves), **Long campaign** (24 waves), or **Endless** before Launch or Restart. Changing the selector during play takes effect on Restart. Endless exposes the original unlimited survival game; the two campaigns add a finishing point without changing the shared wave rules. Trait budgets and swarm size still cap, while selection continues to respond to your play. `?run=campaign`, `?run=extended` and `?run=endless` select the starting option.
+
+Press Sound or M to enable sound. A brief confirmation tone plays even on the title screen. The status reports blocked or unavailable audio and allows a retry. If it says enabled but you hear nothing, check the browser tab, app and device volume. Browser audio state and offline waveform tests cannot establish physical audibility.
+
 ## How the swarm evolves
 
 **Traits** (each 0 to 1): Thrust, Weave, Armor, Feint, Aim, Fire rate, Dodge, Seek. They map to bounded behaviour in `src/genome.js`. Armor also makes a bigger hull, so it carries a cost.
@@ -82,7 +86,7 @@ tests/, tools/
 ## Privacy and security
 
 - No external requests, analytics, cookies, microphone or camera. A strict Content Security Policy blocks remote resources.
-- The only stored data is `{ v, best, wave }` in localStorage, schema-checked and size-limited on read and write. It works fine with storage disabled.
+- Optional localStorage records contain only `{ v, best, wave }`, schema-checked and size-limited. Six fixed keys separate the three run modes and evolving/control rules. Older mixed-rule records remain visible as a separate legacy best and are preserved. It works with storage disabled.
 - Sound starts only after you press the Sound button.
 - The game pauses when the tab becomes hidden and waits for you to resume. Reduced-motion settings reduce cosmetic effects.
 - `server.py` binds to 127.0.0.1, serves a fixed list of files, checks Host and Origin, and allows only GET and HEAD. It caps accepted connections at 16, headers at 16 KiB, each header line at 4 KiB, header duration at 5 seconds and assets at 1 MiB. It rejects linked assets and ambiguous requests, sends hardening headers on errors, and does not log request URLs. See [SECURITY.md](SECURITY.md).

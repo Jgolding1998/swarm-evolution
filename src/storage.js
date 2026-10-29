@@ -1,5 +1,7 @@
-// Optional local best score. Only two integers are ever stored, under one
-// key, and anything that does not match the schema exactly is discarded.
+// Optional local scores. Legacy records stay separate because older versions
+// mixed evolving and control runs. New runs use six fixed mode/rules keys.
+
+import { runMode } from './modes.js';
 
 export const STORAGE_KEY = 'swarm-evolution.best.v1';
 export const MAX_RAW = 96;
@@ -58,4 +60,31 @@ export function clearBest(store) {
   } catch {
     // ignore
   }
+}
+
+export function modeStorageKey(mode, evolve = true) {
+  return `swarm-evolution.best.v2.${runMode(mode)}.${evolve ? 'evolving' : 'control'}`;
+}
+
+function validateModeRecord(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+      || Object.keys(value).sort().join(',') !== 'best,v,wave' || value.v !== 2) return null;
+  if (![value.best, value.wave].every(n => Number.isSafeInteger(n) && n >= 0)) return null;
+  return {v: 2, best: value.best, wave: value.wave};
+}
+
+export function loadModeBest(mode, evolve = true, store) {
+  const empty = {v: 2, best: 0, wave: 0};
+  try {
+    const raw = getStore(store)?.getItem(modeStorageKey(mode, evolve));
+    return typeof raw === 'string' && raw.length <= MAX_RAW ? validateModeRecord(JSON.parse(raw)) || empty : empty;
+  } catch { return empty; }
+}
+
+export function saveModeBest(score, wave, mode, evolve = true, store) {
+  const s = getStore(store), previous = loadModeBest(mode, evolve, s);
+  const next = validateModeRecord({v: 2, best: Math.max(previous.best, Math.floor(score)), wave: Math.max(previous.wave, Math.floor(wave))});
+  if (!next) return previous;
+  try { s?.setItem(modeStorageKey(mode, evolve), JSON.stringify(next)); } catch { /* Optional storage. */ }
+  return next;
 }
