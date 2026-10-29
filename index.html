@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="An arcade shooter where every wave of enemies is bred from the drones that did best against you.">
+  <title>Swarm Evolution</title>
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="src/main.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="brand"><span class="brand-mark" aria-hidden="true"></span>Swarm Evolution</h1>
+    <dl class="hud" aria-label="Game status">
+      <div><dt>Score</dt><dd id="hud-score">0</dd></div>
+      <div><dt>Wave</dt><dd id="hud-wave">1</dd></div>
+      <div><dt>Lives</dt><dd id="hud-lives" class="pips" aria-label="3 lives"></dd></div>
+      <div><dt>Line</dt><dd id="hud-shield" class="pips" aria-label="Defense line 4 of 4"></dd></div>
+      <div class="hud-best"><dt>Best</dt><dd id="hud-best">0</dd></div>
+    </dl>
+    <div class="controls">
+      <button type="button" id="btn-pause" aria-pressed="false" title="Pause (P)">Pause</button>
+      <button type="button" id="btn-sound" aria-pressed="false" title="Sound (M)">Sound off</button>
+      <button type="button" id="btn-restart" title="Restart (R)">Restart</button>
+      <button type="button" id="btn-intel" class="intel-toggle" aria-expanded="false" aria-controls="intel" title="Intel (I)">Intel</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="stage" aria-label="Game">
+      <canvas id="game" tabindex="0" aria-label="Swarm Evolution play field. Use arrow keys or A and D to move, Space to fire, or drag on the field."></canvas>
+
+      <div id="overlay" class="overlay">
+        <div id="panel-title" class="panel">
+          <h2>Every wave learns from the last</h2>
+          <p>Drones that get close, survive, slip past your defense line or land hits get to breed. Watch the intel panel to see what they are learning.</p>
+          <ul class="keys">
+            <li><kbd>&larr;</kbd><kbd>&rarr;</kbd> or <kbd>A</kbd><kbd>D</kbd> move</li>
+            <li><kbd>Space</kbd> fire (hold)</li>
+            <li>Touch: drag on the field to steer and fire</li>
+            <li><kbd>P</kbd> pause, <kbd>M</kbd> sound, <kbd>R</kbd> restart</li>
+          </ul>
+          <button type="button" id="btn-start" class="primary">Launch</button>
+        </div>
+        <div id="panel-pause" class="panel" hidden>
+          <h2>Paused</h2>
+          <p id="pause-reason">Take a breath. The swarm waits.</p>
+          <button type="button" id="btn-resume" class="primary">Resume</button>
+        </div>
+        <div id="panel-over" class="panel" hidden>
+          <h2>Defense broken</h2>
+          <p id="over-summary">You held out.</p>
+          <p id="over-best" class="muted"></p>
+          <button type="button" id="btn-again" class="primary">Fly again</button>
+        </div>
+      </div>
+    </section>
+
+    <aside id="intel" class="intel" aria-labelledby="intel-title">
+      <div class="intel-head">
+        <h2 id="intel-title">Swarm intel</h2>
+        <p id="intel-sub" class="muted">Wave 1 founders</p>
+      </div>
+      <section aria-label="Average traits">
+        <h3>Traits <span class="muted">avg, change from selection</span></h3>
+        <ul id="gene-list" class="genes"></ul>
+      </section>
+      <section aria-label="Selection report">
+        <h3>Last selection</h3>
+        <ul id="report" class="report"></ul>
+      </section>
+      <section aria-label="Fittest drone">
+        <h3>Fitness of the top drone</h3>
+        <ul id="fitness" class="fitness"></ul>
+      </section>
+      <section aria-label="Lineages">
+        <h3>Lineages</h3>
+        <ul id="clades" class="clades"></ul>
+      </section>
+    </aside>
+  </main>
+
+  <p id="announcer" class="sr-only" aria-live="polite"></p>
+  <noscript><p class="noscript">Swarm Evolution needs JavaScript to run.</p></noscript>
+</body>
+</html>

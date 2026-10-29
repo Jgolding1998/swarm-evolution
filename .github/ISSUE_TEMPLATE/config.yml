@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Project feedback
+    url: https://github.com/Jgolding1998/Jgolding1998/issues/new?template=feedback.yml&title=%5Bswarm-evolution%5D%20
+    about: Share a suggestion or problem on the central feedback board. Mention swarm-evolution in the details.
+  - name: Security reporting
+    url: https://github.com/Jgolding1998/swarm-evolution/blob/main/SECURITY.md
+    about: Read the security policy before reporting a suspected vulnerability. Keep details out of public feedback.
