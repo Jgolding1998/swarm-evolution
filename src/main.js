@@ -195,7 +195,12 @@ document.addEventListener('visibilitychange', () => {
     audio.suspend();
   }
 });
-window.addEventListener('blur', () => input.clear());
+window.addEventListener('blur', () => {
+  input.clear();
+  if (!state.paused && (state.phase === 'playing' || state.phase === 'intermission')) {
+    pause(true, 'Paused while the game window lost focus.');
+  }
+});
 
 const motion = globalThis.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
 renderer.setReducedMotion(!!(motion && motion.matches));

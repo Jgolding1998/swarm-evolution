@@ -30,6 +30,8 @@ Choose **Campaign** (12 waves), **Long campaign** (24 waves), or **Endless** bef
 
 Press Sound or M to enable sound. A brief confirmation tone plays even on the title screen. The status reports blocked or unavailable audio and allows a retry. If it says enabled but you hear nothing, check the browser tab, app and device volume. Browser audio state and offline waveform tests cannot establish physical audibility.
 
+Play pauses when the tab is hidden or the game window loses focus. Return and press Resume when ready. Releasing a held fire key after pausing leaves the pause panel open.
+
 ## How the swarm evolves
 
 **Traits** (each 0 to 1): Thrust, Weave, Armor, Feint, Aim, Fire rate, Dodge, Seek. They map to bounded behaviour in `src/genome.js`. Armor also makes a bigger hull, so it carries a cost.

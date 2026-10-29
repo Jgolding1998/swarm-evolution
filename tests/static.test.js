@@ -141,6 +141,18 @@ test('pointer capture loss and cancellation release firing and movement', () => 
   });
 });
 
+test('held activation repeats cannot click a newly focused overlay button', () => {
+  inputFixture(({fakeWindow, commands}) => {
+    for (const code of ['Space', 'Enter']) {
+      const repeated = fakeWindow.emit('keydown', {code, repeat: true, target: {tagName: 'BUTTON'}});
+      assert.equal(repeated.defaultPrevented, true);
+      const fresh = fakeWindow.emit('keydown', {code, repeat: false, target: {tagName: 'BUTTON'}});
+      assert.equal(fresh.defaultPrevented, false, 'fresh button activation stays native');
+    }
+    assert.deepEqual(commands, []);
+  });
+});
+
 test('the first pointer owns a drag and secondary mouse buttons do not fire', () => {
   inputFixture(({ input, canvas, commands, captures }) => {
     for (const button of [1, 2]) canvas.emit('pointerdown', { pointerType: 'mouse', pointerId: button, button, clientX: 80 });

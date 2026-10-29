@@ -22,7 +22,10 @@ export function createInput({ canvas, toWorldX, onCommand }) {
   function onKeyDown(ev) {
     if (ev.ctrlKey || ev.metaKey || ev.altKey || isTypingTarget(ev.target)) return;
     const onButton = ev.target && ev.target.tagName === 'BUTTON';
-    if (onButton && (ev.code === 'Space' || ev.code === 'Enter')) return;
+    if (onButton && (ev.code === 'Space' || ev.code === 'Enter')) {
+      if (ev.repeat) ev.preventDefault();
+      return;
+    }
     const code = ev.code;
     if (COMMANDS[code]) {
       if (!ev.repeat) onCommand(COMMANDS[code]);
