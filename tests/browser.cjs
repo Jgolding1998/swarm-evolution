@@ -44,7 +44,7 @@ async function main() {
     browser = await chromium.launch({headless: true, args: ["--mute-audio"], ...(process.env.SWARM_CHROME ? {executablePath: process.env.SWARM_CHROME} : {})});
     fs.mkdirSync(captures, {recursive: true});
 
-    async function context(options = {}) {
+    async function context(options = {}, fakeAudio = false) {
       const value = await browser.newContext({reducedMotion: "reduce", ...options});
       await value.route("**/*", async (route) => {
         if (!route.request().url().startsWith(origin + "/")) {
@@ -52,10 +52,24 @@ async function main() {
           await route.abort();
         } else await route.continue();
       });
-      await value.addInitScript(() => {
-        globalThis.AudioContext = class {constructor() {throw Error("Audio disabled in tests");}};
+      await value.addInitScript((fakeAudio) => {
+        const node = () => ({gain: {value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {}},
+          frequency: {setValueAtTime() {}, exponentialRampToValueAtTime() {}},
+          connect() {return this;}, start() {globalThis.__audioStarts += 1;}, stop() {}});
+        globalThis.__audioStarts = 0;
+        globalThis.AudioContext = fakeAudio ? class {
+          constructor() {this.state = "suspended"; this.sampleRate = 8000; this.currentTime = 1; this.destination = {}; globalThis.__fakeAudio = this;}
+          resume() {this.state = "running"; return Promise.resolve();}
+          suspend() {this.state = "suspended"; return Promise.resolve();}
+          close() {this.state = "closed"; return Promise.resolve();}
+          createGain() {return node();}
+          createOscillator() {return node();}
+          createBiquadFilter() {return node();}
+          createBufferSource() {return node();}
+          createBuffer(channels, length) {return {getChannelData: () => new Float32Array(length)};}
+        } : class {constructor() {throw Error("Audio disabled in tests");}};
         globalThis.webkitAudioContext = globalThis.AudioContext;
-      });
+      }, fakeAudio);
       value.on("page", (page) => {
         page.on("pageerror", () => failures.push("page error"));
         page.on("console", (message) => {if (message.type() === "error") consoleErrors.push("console error");});
@@ -95,6 +109,25 @@ async function main() {
     check(await page.locator("#gene-list").textContent() === seededTraits, "Restart preserves the explicit URL seed");
     check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Desktop has no horizontal overflow");
     await desktop.close();
+
+    for (const launch of ["click", "Enter", "Space", "tap"]) {
+      const sound = await context({viewport: {width: 1280, height: 900}, hasTouch: true}, true);
+      const audioPage = await sound.newPage();
+      await audioPage.goto(origin + "/?seed=audio-title");
+      await audioPage.locator("#btn-sound").click();
+      check(await audioPage.evaluate(() => globalThis.__fakeAudio.state === "running"), "Title sound opt-in resumes the fake context");
+      await audioPage.evaluate(() => {Object.defineProperty(document, "hidden", {configurable: true, get: () => true}); document.dispatchEvent(new Event("visibilitychange"));});
+      check(await audioPage.evaluate(() => globalThis.__fakeAudio.state === "suspended"), "Hidden title suspends opted-in audio");
+      await audioPage.evaluate(() => {delete document.hidden; document.dispatchEvent(new Event("visibilitychange"));});
+      const button = audioPage.locator("#btn-start");
+      if (launch === "click") await button.click();
+      else if (launch === "tap") await button.tap();
+      else {await button.focus(); await audioPage.keyboard.press(launch);}
+      check(await audioPage.evaluate(() => globalThis.__fakeAudio.state === "running"), `Launch by ${launch} resumes opted-in title audio after a hidden tab`);
+      await audioPage.waitForFunction(() => globalThis.__audioStarts > 0);
+      check(await audioPage.locator("#btn-sound").getAttribute("aria-pressed") === "true", "Sound opt-in stays enabled after launch");
+      await sound.close();
+    }
 
     for (const [width, height] of [[390, 844], [844, 390], [320, 568]]) {
       const mobile = await context({viewport: {width, height}, isMobile: true, hasTouch: true, deviceScaleFactor: 2});

@@ -46,6 +46,7 @@ function focusField() {
 function launch() {
   if (state.phase !== 'ready') return;
   startGame(state);
+  audio.resume();
   showPanel(null);
   focusField();
 }
