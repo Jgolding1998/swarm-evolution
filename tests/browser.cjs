@@ -196,7 +196,10 @@ async function main() {
       // Only this test response starts at a final clear. The shipped module has no debug hook.
       await victory.route('**/src/sim.js', async route => {
         const response = await route.fetch();
-        const source = (await response.text()).replace('spawnWave(state);\n  return state;', `spawnWave(state);\n  state.wave = ${waves}; state.enemies.length = state.shots.length = 0;\n  return state;`);
+        const original = await response.text();
+        const anchor = /spawnWave\(state\);\r?\n  return state;/g;
+        check((original.match(anchor) || []).length === 1, 'Final-wave fixture matches exactly once with LF or CRLF');
+        const source = original.replace(anchor, `spawnWave(state);\n  state.wave = ${waves}; state.enemies.length = state.shots.length = 0;\n  return state;`);
         await route.fulfill({response, body: source});
       });
       const won = await victory.newPage(); await won.goto(origin + '/?seed=terminal-ui&run=' + mode);

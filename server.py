@@ -15,6 +15,7 @@ import socket
 import stat
 import sys
 import threading
+import time
 from urllib.parse import urlsplit
 
 ROOT = pathlib.Path(__file__).absolute().parent
@@ -242,6 +243,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
     do_POST = do_PUT = do_DELETE = do_PATCH = do_OPTIONS = _reject
 
 
+def _linger_discard(request):
+    """Half-close, then discard at most 16 KiB within one 100ms deadline.
+
+    Small delayed bodies must not reset an unread early response. Discarded
+    bytes are never parsed or acted on; larger or later sends can still reset.
+    """
+    try:
+        request.shutdown(socket.SHUT_WR)
+    except OSError:
+        return
+    remaining, deadline = 16 * 1024, time.monotonic() + .1
+    while remaining:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            return
+        try:
+            request.settimeout(left)
+            block = request.recv(min(4096, remaining))
+        except OSError:
+            return
+        if not block:
+            return
+        remaining -= len(block)
+
+
 class LocalServer(http.server.ThreadingHTTPServer):
     daemon_threads = True
     request_queue_size = 16
@@ -256,6 +282,13 @@ class LocalServer(http.server.ThreadingHTTPServer):
             self.allow_reuse_address = False
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         super().server_bind()
+
+    def shutdown_request(self, request):
+        # Handler.finish() has flushed any response before shared socket cleanup.
+        try:
+            _linger_discard(request)
+        finally:
+            super().shutdown_request(request)
 
     def process_request(self, request, address):
         if not self.slots.acquire(blocking=False):

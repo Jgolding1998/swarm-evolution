@@ -6,6 +6,8 @@ The server rejects ambiguous Host and framing headers, unexpected Origins, cross
 
 The browser makes no external requests. The only optional saved record is a bounded best score and wave number in localStorage. Browser extensions, other software running as your account, and a compromised browser or operating system are outside this boundary. A seed in a URL may remain in browser history, so do not put private information in it.
 
+Responses are flushed before a shared half-close and bounded raw-input discard: at most 16 KiB within one 100-millisecond deadline. Discarded bytes are never parsed or acted on. This preserves early errors for small delayed bodies; larger or later sends can still reset a connection. Admission limits include this cleanup time, and request authorization and size limits are unchanged.
+
 ## Reporting a vulnerability
 
 Use [Security > Report a vulnerability](https://github.com/Jgolding1998/swarm-evolution/security/advisories/new) to send a private report. Do not submit vulnerability details through the public feedback form.
